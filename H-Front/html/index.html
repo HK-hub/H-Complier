@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>H-Complier</title>
+
+
+    <!-- 引入样式 -->
+    <link rel="stylesheet" href="../css/element/index.css">
+    <link rel="stylesheet" href="../css/element/font-awesome.min.css">
+    <!-- 必须先引入vue，  后使用element-ui -->
+    <script src="../js/vue/vue.js"></script>
+    <!-- 引入组件库 -->
+    <script src="../js/element/index.js"></script>
+    <!-- codemirror 库 -->
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/lib/codemirror.css">
+    <script src="../component/codemirror/codemirror-5.65.2/lib/codemirror.js"></script>
+
+    <!-- 对应的代码高亮 -->
+    <script src="../component/codemirror/codemirror-5.65.2/mode/javascript/javascript.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/mode/groovy/groovy.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/mode/clike/clike.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/mode/yaml/yaml.js"></script>
+
+
+    <!--引入css文件，用以支持主题-->
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/theme/dracula.css" />
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/theme/material-darker.css">
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/theme/lesser-dark.css">
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/theme/ayu-mirage.css">
+
+
+    <!-- codemirror 支持代码行折叠 -->
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/addon/fold/foldgutter.css">
+    <link rel="stylesheet" href="../component/codemirror/codemirror-5.65.2/addon/scroll/simplescrollbars.css">
+    <script src="../component/codemirror/codemirror-5.65.2/addon/fold/foldgutter.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/addon/fold/foldcode.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/addon/fold/brace-fold.js"></script>
+    <script src="../component/codemirror/codemirror-5.65.2/addon/fold/comment-fold.js"></script>
+
+
+    <!-- ------------------------ API 函数 ------------------------ -->
+    <script src="../js/api/editor.js"></script>
+    <script src="../js/api/global.js"></script>
+    <script src="../js/api/file.js"></script>
+    <script src="../js/vue/axios.min.js"></script>
+    <!-- ------------------------ 系统样式 ------------------------ -->
+
+
+</head>
+
+<body>
+    <div id="app">
+        <!-- 文件上传表单 -->
+        <el-dialog title="打开源程序" :visible.sync="dialogVisible" width="30%" :before-close="handleClose" center>
+            <!-- auto-uplod 关闭文件自动上传，通过 on-changed 钩子函数获取文件， -->
+            <el-upload ref="upload" class="upload-demo" :auto-upload="false" action="#" :http-request="uploadHttpRequest" drag multiple>
+                <i class="el-icon-upload"></i>
+            </el-upload>
+            <el-button @click="dialogVisible = false">取 消</el-button>
+            <el-button type="primary" @click="uploadSourceFile">确 定</el-button>
+        </el-dialog>
+
+
+        <!-- 菜单栏 -->
+        <div class="menu" style="margin-bottom: 20px;">
+            <div class="menuBars">
+                <div class="menuBar">
+                    <el-row>
+                        <el-col :span="24">
+                            <div class="grid-content bg-purple-dark" style="background-color: antiquewhite;">
+
+                                <el-dropdown @command="handleFileCommand">
+                                    <el-button type="primary">
+                                        File<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <!-- 新建代码文件 -->
+                                        <el-dropdown-item icon="el-icon-eleme" command="new_file" @click="dialogVisible = true">New...</el-dropdown-item>
+                                        <!-- 打开本地代码源程序文件 -->
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="open_file">Open...</el-dropdown-item>
+                                        <el-dropdown-item>Save as...</el-dropdown-item>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+                                <el-dropdown @command="handleEditCommand">
+                                    <el-button type="primary">
+                                        Edit<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="find">Find...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="replace">Replace...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="copy">Copy...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" commmand="paste">Paste...</el-dropdown-item>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+                                <el-dropdown>
+                                    <el-button type="primary">
+                                        Compile<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <el-dropdown-item icon="el-icon-circle-plus">词法分析</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">语法分析</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">语义分析</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">中间代码</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">目标代码</el-dropdown-item>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+                                <el-dropdown @command="handleRunnerCommand">
+                                    <el-button type="primary">
+                                        Run<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="run">Run...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="debug">Debug...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="profile">Profile...</el-dropdown-item>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+
+                                <el-dropdown>
+                                    <el-button type="primary">
+                                        View<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <el-dropdown-item icon="el-icon-circle-plus">Tree...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">Table...</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus">Graph...</el-dropdown-item>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+                                <el-dropdown>
+                                    <el-button type="primary">
+                                        Help<i class="el-icon-arrow-down el-icon--right"></i>
+                                    </el-button>
+                                    <el-dropdown-menu slot="dropdown">
+                                        <a href="https://github.com/HK-hub">
+                                            <el-dropdown-item icon="el-icon-circle-plus">About...</el-dropdown-item>
+                                        </a>
+                                        <el-dropdown-item icon="el-icon-circle-plus">Help...</el-dropdown-item>
+                                        <a href="https://hk-hub.github.io/">
+                                            <el-dropdown-item icon="el-icon-circle-plus">Concat...</el-dropdown-item>
+                                        </a>
+                                    </el-dropdown-menu>
+                                </el-dropdown>
+                            </div>
+                        </el-col>
+                    </el-row>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- 编辑器区域 -->
+        <div class="main">
+            <el-row class="codeEditorRow" style="margin-bottom: 30px;">
+                <el-col :span="14">
+                    <div class="grid-content bg-purple">
+                        <textarea class="form-control" id="codeEditor" name="codeEditor"></textarea>
+                    </div>
+                </el-col>
+                <el-col :span="10">
+                    <div class="grid-content bg-purple-light ">
+                        <textarea class="form-control" id="resultTerminal" name="resultTerminal"></textarea>
+                    </div>
+                </el-col>
+            </el-row>
+            <el-row class="debugTerminalRow">
+                <el-col :span="24">
+                    <div class="grid-content bg-purple-dark ">
+                        <textarea class="form-control" id="debugTerminal" name="debugTerminal"></textarea>
+                    </div>
+                </el-col>
+            </el-row>
+
+        </div>
+
+    </div>
+</body>
+
+
+
+
+<script>
+    var app = new Vue({
+            el: '#app',
+            data() {
+                return {
+                    dialogVisible: false,
+                    // 源文件
+                    sourceFiles: [],
+                    file: {},
+                    fileList: [],
+                }
+            },
+            mounted() {
+                console.log("gregrtehg");
+            },
+            methods: {
+
+                // 处理文件Bar命令
+                handleFileCommand(command) {
+                    //alert(command);
+                    if (command == 'open_file') {
+                        this.dialogVisible = true;
+                    } else if (command == 'new_file') {
+
+                        // 将编辑器文本值传入到后台进行处理
+                        //sendSourceCode(editor.getValue(), axios);
+
+                        const config = {
+                            headers: {
+                                'Content-Type': 'application/json; charset=utf-8'
+                            }
+                        };
+                        axios.post(API_REQUEST_URL + '/source/new', editor.getValue(), config).then(res => {
+                            // 这里的res需根据后台返回情况判断
+                            if (res.data.code === 200) {
+                                console.log(res.data);
+                                resultTerminal.setValue(JSON.stringify(res.data));
+                            }
+                        }).catch(reject => {
+                            console.log(reject)
+                        })
+
+                    }
+
+                },
+
+
+                // 处理编辑区Bar 命令
+                handleEditCommand(command) {
+
+                    // find 查找
+                    if (command == 'find') {
+
+                    } else if (command == 'replace') {
+                        // 替换选中内容
+
+
+                    } else if (command == 'copy') {
+                        // 复制文本内容
+                        copyText(editor.getValue());
+
+                    } else if (command == 'paste') {
+                        // 粘贴文本到编辑区域
+
+                    }
+
+                },
+
+                // 处理 Runner 菜单区域命令
+                handleRunnerCommand(command) {
+                    // Run 运行
+                    if (command == 'run') {
+                        resultTerminal.setValue('运行成功：结果如下')
+                    } else if (command == 'debug') {
+                        debugTerminal.setValue('Debug 信息如下：')
+                    } else if (command == 'profile') {
+
+                    }
+                },
+
+                // 关闭对话框
+                handleClose(done) {
+                    this.$confirm('确认关闭？')
+                        .then(_ => {
+                            done();
+                        })
+                        .catch(_ => {});
+                },
+
+                // 获取文件和文件，列表
+                handleFileChange(file) {
+
+
+                },
+
+                // 自定义文件上传规则
+                // 自定义上传方法，param是默认参数，可以取得file文件信息，具体信息如下图
+                async uploadHttpRequest(param) {
+                    const that = this;
+                    // FormData对象，添加参数只能通过append('key', value)的形式添加
+                    const formData = new FormData();
+                    // 添加文件对象
+                    formData.append("file", param.file);
+                    const config = {
+                        headers: {
+                            "Content-Type": "multipart/form-data"
+                        }
+                    };
+                    console.log('uploadHttpRequest:', param);
+                    axios.post(API_REQUEST_URL + '/source/upload', formData, config).then(res => {
+                        // 这里的res需根据后台返回情况判断
+                        if (res.data.code === 200) {
+                            //console.log(res.data);
+                            setEditorValue(editor, res.data.data)
+                        } else {
+                            console.log('文件上传失败');
+                        }
+                    }).catch(reject => {
+                        console.log(reject)
+                    })
+                },
+
+
+                // 文件上传，换取服务器的字符串
+                uploadSourceFile() {
+
+                    // console.log(this.file);
+                    // let param = new FormData(); // 创建form对象
+                    // param.append("file", this.file); // 通过append向form对象添加数据
+                    // let config = {
+                    //     headers: {
+                    //         "Content-Type": "multipart/form-data"
+                    //     }
+                    // };
+                    // axios.post(API_REQUEST_URL + '/source/upload', param, config)
+                    //     .then(function(res) {
+                    //         // 上传成功执行回调
+                    //         console.log(res);
+                    //         editor.setValue(res.data.data);
+                    //         resultTerminal.setValue(res.data.data);
+                    //     })
+                    //     .catch(function(err) {
+                    //         console.log(err);
+                    //     });
+                    // this.dialogVisible = false;
+                    this.$refs.upload.submit();
+                    this.dialogVisible = false;
+                }
+
+            },
+        })
+        //根据DOM元素的id构造出一个编辑器
+    var editor = CodeMirror.fromTextArea(document.getElementById("codeEditor"), {
+        mode: "text/groovy", //实现groovy代码高亮
+        mode: "text/x-java", //实现Java代码高亮
+        lineNumbers: true, //显示行号
+        theme: "dracula", //设置主题
+        lineWrapping: true, //代码折叠
+        foldGutter: true,
+        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        fixedGutter: false, // 设置gutter跟随编辑器内容水平滚动（false）还是固定在左侧（true或默认）。
+        matchBrackets: true, //括号匹配
+        indentUnit: 4, // 缩进单位，值为空格数，默认为2
+        smartindent: true, // 智能缩进，自动缩进，设置是否根据上下文自动缩进（和上一行相同的缩进量）。默认为true。
+        scrollbarStyle: 'null',
+
+        // 代码编辑区域配置：
+        lineWiseCopyCut: true, //启用时，如果在复制或剪切时没有选择文本，那么就会自动操作光标所在的整行。
+
+        //readOnly: true,        //只读
+
+    });
+
+
+    var debugTerminal = CodeMirror.fromTextArea(document.getElementById("debugTerminal"), {
+        mode: "text/groovy", //实现groovy代码高亮
+        mode: "text/x-java", //实现Java代码高亮
+        lineNumbers: true, //显示行号
+        theme: "ayu-mirage", //设置主题
+        lineWrapping: true, //代码折叠
+        foldGutter: true,
+        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        fixedGutter: false, // 设置gutter跟随编辑器内容水平滚动（false）还是固定在左侧（true或默认）。
+        matchBrackets: true, //括号匹配
+        indentUnit: 4, // 缩进单位，值为空格数，默认为2
+        smartindent: true, // 智能缩进，自动缩进，设置是否根据上下文自动缩进（和上一行相同的缩进量）。默认为true。
+        scrollbarStyle: 'null',
+
+        // 代码编辑区域配置：
+        lineWiseCopyCut: true, //启用时，如果在复制或剪切时没有选择文本，那么就会自动操作光标所在的整行。
+
+        readOnly: true, //只读
+
+    });
+
+
+    var resultTerminal = CodeMirror.fromTextArea(document.getElementById("resultTerminal"), {
+        mode: "text/groovy", //实现groovy代码高亮
+        mode: "text/x-java", //实现Java代码高亮
+        lineNumbers: true, //显示行号
+        theme: "dracula", //设置主题
+        lineWrapping: true, //代码折叠
+        foldGutter: true,
+        gutters: ["CodeMirror-linenumbers", "CodeMirror-foldgutter"],
+        fixedGutter: false, // 设置gutter跟随编辑器内容水平滚动（false）还是固定在左侧（true或默认）。
+        matchBrackets: true, //括号匹配
+        indentUnit: 4, // 缩进单位，值为空格数，默认为2
+        smartindent: true, // 智能缩进，自动缩进，设置是否根据上下文自动缩进（和上一行相同的缩进量）。默认为true。
+        scrollbarStyle: 'null',
+
+        // 代码编辑区域配置：
+        lineWiseCopyCut: true, //启用时，如果在复制或剪切时没有选择文本，那么就会自动操作光标所在的整行。
+
+        //readOnly: true, //只读
+
+    });
+
+    // 设置代码编辑器长宽
+    editor.setSize('97%', '600px'); //设置代码框的长宽: 第一个参数为宽度，第二个参数为长度
+    resultTerminal.setSize('97%', '600px')
+    debugTerminal.setSize('99%', '200px')
+</script>
+
+
+</html>
