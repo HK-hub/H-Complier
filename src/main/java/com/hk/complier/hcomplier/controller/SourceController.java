@@ -1,6 +1,5 @@
 package com.hk.complier.hcomplier.controller;
 
-import com.alibaba.fastjson.JSON;
 import com.hk.complier.hcomplier.common.res.ResponseResult;
 import com.hk.complier.hcomplier.service.FileService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -8,8 +7,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
-import java.nio.charset.Charset;
-import java.nio.charset.StandardCharsets;
 
 /**
  * @author : HK意境
@@ -51,7 +48,6 @@ public class SourceController {
     // 接收源程序字符串
     @PostMapping("/new")
     public ResponseResult<String> receiveCodeSourceString(@RequestBody String param){
-
 
         System.out.println(param);
         return ResponseResult.SUCCESS().setData("接受成功");
