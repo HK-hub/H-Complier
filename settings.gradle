@@ -1,3 +1,4 @@
 rootProject.name = 'H-Complier'
 include 'common'
+include 'core'
 
