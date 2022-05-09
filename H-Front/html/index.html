@@ -96,12 +96,12 @@
                                         <el-dropdown-item icon="el-icon-circle-plus" commmand="paste">Paste...</el-dropdown-item>
                                     </el-dropdown-menu>
                                 </el-dropdown>
-                                <el-dropdown>
+                                <el-dropdown @command="handleBuildCommand">
                                     <el-button type="primary">
                                         Compile<i class="el-icon-arrow-down el-icon--right"></i>
                                     </el-button>
                                     <el-dropdown-menu slot="dropdown">
-                                        <el-dropdown-item icon="el-icon-circle-plus">词法分析</el-dropdown-item>
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="lex">词法分析</el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">语法分析</el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">语义分析</el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">中间代码</el-dropdown-item>
@@ -118,12 +118,14 @@
                                         <el-dropdown-item icon="el-icon-circle-plus" command="profile">Profile...</el-dropdown-item>
                                     </el-dropdown-menu>
                                 </el-dropdown>
-
-                                <el-dropdown>
+                                <el-dropdown @command="handleViewCommand">
                                     <el-button type="primary">
                                         View<i class="el-icon-arrow-down el-icon--right"></i>
                                     </el-button>
                                     <el-dropdown-menu slot="dropdown">
+                                        <el-dropdown-item icon="el-icon-circle-plus" command="dfa">
+                                            <a href="./DFA.html" target="_blank" rel="noopener noreferrer">DFA...</a>
+                                        </el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">Tree...</el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">Table...</el-dropdown-item>
                                         <el-dropdown-item icon="el-icon-circle-plus">Graph...</el-dropdown-item>
@@ -252,6 +254,29 @@
 
                 },
 
+                // 构建区 Bar 命令
+                handleBuildCommand(command) {
+
+                    if (command == 'lex') {
+                        const config = {
+                            headers: {
+                                'Content-Type': 'application/json; charset=utf-8'
+                            }
+                        };
+                        axios.post(API_REQUEST_URL + '/lex/analyze', editor.getValue(), config).then(res => {
+                            // 这里的res需根据后台返回情况判断
+                            if (res.data.code === 200) {
+                                console.log(res.data);
+                                resultTerminal.setValue(res.data.data.wordText);
+                                debugTerminal.setValue(res.data.data.exceptionText);
+                            }
+                        }).catch(reject => {
+                            console.log(reject)
+                        })
+                    }
+
+                },
+
                 // 处理 Runner 菜单区域命令
                 handleRunnerCommand(command) {
                     // Run 运行
@@ -263,6 +288,21 @@
 
                     }
                 },
+
+                // 处理 View 视图区域
+                handleViewCommand(command) {
+
+                    // DFA 视图
+                    if (command == 'dfa') {
+
+
+                    }
+
+
+
+                },
+
+
 
                 // 关闭对话框
                 handleClose(done) {

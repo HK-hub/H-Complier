@@ -1,9 +1,11 @@
 package com.hk.complier.hcomplier.controller;
 
-import com.hk.complier.core.lexicalnalyzer.LexicalAnalyzer;
+import com.hk.complier.lexer.lexicalnalyzer.LexicalAnalyzer;
 import com.hk.complier.hcomplier.common.res.ResponseResult;
+import com.hk.complier.hcomplier.common.res.ResultCode;
 import com.hk.complier.hcomplier.service.SourceService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -18,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
  * @Modified :
  * @Version : 1.0
  */
+@CrossOrigin
 @RestController
 @RequestMapping("/lex")
 public class LexicalAnalysisController {
@@ -39,12 +42,15 @@ public class LexicalAnalysisController {
      * @Modified :
      * @Version : 1.0
      */
+    @RequestMapping("/analyze")
     public ResponseResult lexicalAnalysis(@RequestBody String sourceString){
 
+        System.out.println("前端传过来的字符串：");
         System.out.println(sourceString);
-        LexicalAnalyzer analyzer = sourceService.lexicalAnalyzerService(sourceString);
 
-        return new ResponseResult<LexicalAnalyzer>().setData(analyzer);
+        LexicalAnalyzer analyzer = sourceService.lexicalAnalyzerService(sourceString);
+        ResponseResult<LexicalAnalyzer> result = new ResponseResult<>(ResultCode.SUCCESS, analyzer);
+        return result;
     }
 
 }

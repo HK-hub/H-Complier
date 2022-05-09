@@ -27,16 +27,18 @@ dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-jdbc'
     implementation 'org.springframework.boot:spring-boot-starter-web'
     implementation 'com.google.code.gson:gson:2.8.7'
-    implementation 'com.alibaba:fastjson:1.2.78'
+
+    implementation 'net.sf.json-lib:json-lib-ext-spring:1.0.2'
+
     compileOnly 'org.projectlombok:lombok'
     runtimeOnly 'mysql:mysql-connector-java'
     annotationProcessor 'org.projectlombok:lombok'
+    implementation 'net.sf.json-lib:json-lib:2.4'
+
+
 
     implementation project(":core")
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }
 
-tasks.named('test') {
-    useJUnitPlatform()
-}

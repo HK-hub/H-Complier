@@ -1,0 +1,55 @@
+program->declaration_statement int main () compound_statement function_block
+function_block->function_define function_block | $
+function_define->function_return_type identifier ( function_define_format_parameter_list ) compound_statement
+function_define_format_parameter_list->function_define_format_parameter_item | $
+function_define_format_parameter_item->variable_type identifier | variable_type identifier , function_define_format_parameter_item
+statement->declaration_statement | execute_statement
+declaration_statement->value_declaration | function_declaration | $
+value_declaration->const_declaration | variable_declaration
+const_declaration->final const_type const_declaration_table
+const_type->int | char | float | String
+const_declaration_table->identifier = const_value ; | identifier = const_value , const_declaration_table
+variable_declaration->variable_type variable_declaration_table
+variable_type->int | char | float | String
+variable_declaration_table->single_variable_declaration ; | single_variable_declaration , variable_declaration_table
+single_variable_declaration->variable_value | variable_value = expression
+function_declaration->function_return_type identifier ( function_declaration_format_parameter_list ) ;
+function_return_type->int | char | float | String | void
+function_declaration_format_parameter_list->function_declaration_format_parameter_item | $
+function_declaration_format_parameter_item->variable_type | variable_type , function_declaration_format_parameter_item
+execute_statement->data_process_statement | control_statement | compound_statement
+data_process_statement->assign_statement | function_call_statement
+assign_statement->assign_expression ;
+assign_expression->identifier = expression
+function_call_statement->function_call ;
+control_statement-> if_statement | for_statement | while_statement | do_while_statement | return_statement
+compound_statement->{ statement_table }
+statement_table->statement | statement statement_table
+if_statement->if ( expression ) compound_statement if_tail
+if_tail->else compound_statement | $
+for_statement->for ( statement ; statement ; statement ) loop_statement
+while_statement->while ( statement ) loop_statement
+do_while_statement->do loop_compound_statement while ( expression )
+loop_statement->declaration_statement | loop_execute_statement | loop_compound_statement
+loop_compound_statement->{ loop_statement_table }
+loop_statement_table->loop_execute_statement | loop_execute_statement loop_statement_table
+loop_execute_statement->loop_if_statement | for_statement | while_statement | do_while_statement | return_statement | break_statement | continue_statement
+loop_if_statement->if ( expression ) loop_statement | if ( expression ) loop_statement else loop_statement
+return_statement->return ; | return expression ;
+break_statement->break ;
+continue_statement->continue ;
+expression->arithmetic_expression | relational_expression | bool_expression | assign_expression
+arithmetic_expression->prime + arithmetic_expression | prime - arithmetic_expression | prime
+prime->factor * prime | factor / prime | factor % prime | factor
+factor->( arithmetic_expression ) | const_value | variable_value | function_call
+function_call->identifier ( actual_parameter_list )
+actual_parameter_list->actual_parameter_item | $
+actual_parameter_item->expression | expression , actual_parameter_item
+relational_expression->arithmetic_expression relational_operator arithmetic_expression
+relational_operator->> | < | >= | <= | == | !=
+bool_expression->bool_expression||bool_prime | bool_prime
+bool_prime->bool_prime&&bool_factor | bool_factor
+bool_factor->arithmetic_expression | relational_expression | bool_expression
+identifier->
+const_value->
+variable_value->

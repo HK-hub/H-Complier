@@ -1,6 +1,6 @@
 package com.hk.complier.hcomplier.service;
 
-import com.hk.complier.core.lexicalnalyzer.LexicalAnalyzer;
+import com.hk.complier.lexer.lexicalnalyzer.LexicalAnalyzer;
 import org.springframework.stereotype.Service;
 
 /**

@@ -4,6 +4,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
+import java.util.*;
 
 /**
  * @author : HK意境
@@ -25,7 +26,11 @@ public class FileContainReader {
         BufferedReader br = new BufferedReader(isReader);
         //循环逐行读取
         while (br.ready()) {
-            sb.append(br.readLine()).append('\n');
+
+            // 需要对每一行进行词法分析
+            String line = br.readLine();
+            // 返回字符串
+            sb.append(line).append('\n');
         }
         //关闭流，讲究
         br.close();
@@ -34,9 +39,6 @@ public class FileContainReader {
 
         return sb.toString();
     }
-
-
-
 
 
 }
