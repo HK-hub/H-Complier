@@ -1,12 +1,22 @@
 package com.hk.complier.syntax.parser.ll;
 
+import com.hk.complier.common.FileReaderUtil;
 import com.hk.complier.lexer.constant.Word;
+import com.hk.complier.lexer.constant.WordDefinition;
 import com.hk.complier.lexer.constant.WordMappingPool;
+import com.hk.complier.lexer.constant.WordStatus;
+import com.hk.complier.lexer.handle.AnalyzerHandler;
+import com.hk.complier.lexer.lexicalnalyzer.LexicalAnalyzer;
 import com.hk.complier.lexer.token.TokenPool;
 import com.hk.complier.syntax.parser.ll.ast.AbstractSyntaxTree;
+import com.hk.complier.syntax.parser.ll.ast.NodeType;
+import com.hk.complier.syntax.parser.ll.ast.SyntaxNode;
 import com.hk.complier.syntax.parser.ll.excption.SyntaxException;
 import lombok.Data;
+import org.w3c.dom.Node;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 
 /**
@@ -26,14 +36,103 @@ public class SyntaxParser {
     // token 池
     private TokenPool tokenPool ;
 
+    // 词法分析器
+    private LexicalAnalyzer lexer ;
+
     // 记录语法树
     public AbstractSyntaxTree ast ;
+
+    // 记录当前 token
+    public Word token ;
 
     // 记录语法解析过程中语法推到选择的策略
     public Map<String,List<String>> parseTrance = new HashMap<String,List<String>>();
 
     // 记录语法分析过程中的错误
     private List<SyntaxException> syntaxErrorList = new ArrayList<>();
+
+
+    // 获取下一个 token 的快捷方法
+    public Word getNextToken(){
+        return this.tokenPool.getNextToken();
+    }
+
+    // 期望匹配的 token
+    public boolean match(Word expectedToken){
+
+        if(this.token.getValue().equals(expectedToken.getValue())){
+            this.token = this.getNextToken();
+            return true;
+        }else{
+            this.syntaxErrorList.add(new SyntaxException(expectedToken,"当前token不是期望得到的token"));
+
+            // 打印保存 token 信息
+            return false ;
+        }
+    }
+
+
+    // 匹配 或者 类型匹配
+    public boolean matchOrType(Word expectedToken , String type){
+
+        // 获取 当前 token 的 weakClass
+        String wordClassByTokenValue = WordMappingPool.getWordClassByTokenValue(this.token.getToken());
+        assert wordClassByTokenValue != null;
+        // 值相等
+        boolean res = this.token.getValue().equals(expectedToken.getValue());
+        if (wordClassByTokenValue.equals(type) ||res){
+            this.token = this.getNextToken();
+            return true ;
+        }else{
+            this.syntaxErrorList.add(new SyntaxException(expectedToken,"当前token不是期望得到的token"));
+            // 打印保存 token 信息
+            return false ;
+        }
+    }
+
+    // 匹配 token 值
+    public boolean matchOrToken(Word expectedToken , Integer tokenValue){
+
+        // 获取 当前 token 的 weakClass
+        if (this.token.getToken().equals(tokenValue)){
+            this.token = this.getNextToken();
+            return true ;
+        }else{
+            this.syntaxErrorList.add(new SyntaxException(expectedToken,"当前token不是期望得到的token"));
+            // 打印保存 token 信息
+            return false ;
+        }
+    }
+
+    // 词法分析
+    public void doLexical() throws IOException {
+
+        this.lexer = new LexicalAnalyzer();
+
+        System.out.println("输入测试数据文件路径：");
+        Scanner scanner = new Scanner(System.in);
+
+        // 输入算数表达式
+        String filePath = scanner.nextLine();
+
+        StringBuilder source = FileReaderUtil.readLineToListPool(new File(filePath));
+
+        // 执行词法分析
+        AnalyzerHandler.run(source,this.lexer);
+
+        // 添加结束符号
+        this.lexer.getWordPool().getWordDefinitionList().add(new WordDefinition(new Word("#","#",10000)));
+
+        // 设置 TokenPool
+        this.tokenPool = new TokenPool(this.lexer) ;
+
+        // 输出 token
+        this.tokenPool.getWordDefinitionList().forEach((item) -> {
+            System.out.println(item.getWord());
+        });
+
+    }
+
     
     /**
      * @methodName : 语法解析程序入口
@@ -49,512 +148,832 @@ public class SyntaxParser {
      * @Modified :
      * @Version : 1.0
      */
-    public void parse(){
-        Word startWord = null ;
+    // program -> declaration_list
+    public AbstractSyntaxTree parse() throws IOException {
 
-        // 获取第一个 token
-        if(this.tokenPool.hasNextToken()){
-            // 获取开始 token
-            startWord = this.tokenPool.getNextToken();
+        // 先进行词法分析
+        this.doLexical();
 
-            // 进入程序入口
-            this.program(startWord,this.tokenPool.getCursor());
+        // 抽象语法树
+        SyntaxNode rootNode ;
 
-        }else{
-            // 没有 token 
-           // this.syntaxErrorList.add(new SyntaxException(null,0,"no token input!"));
+        // 获取开始节点
+        this.token = this.tokenPool.getNextToken();
+
+        // 处理声明列表
+        rootNode = this.declarationList();
+
+        if (!this.token.getToken().equals(WordMappingPool.getTokenValue("#"))){
+            // 已经结束
+            this.syntaxErrorList.add(new SyntaxException(this.token ,"程序非法的文法结束"));
         }
 
+        this.ast.setRootNode(rootNode);
+
+        return this.ast ;
     }
-    
 
-    // 非终结符: 程序解析
-    public int program(Word preToken , int currentCursor){
 
-        // 当前解析语句的解析过程 parseTrance
-        List<String> trance = new ArrayList<>();
+    // 处理声明列表
+    // delcaration_list -> declaration { declaration }
+    private SyntaxNode declarationList() {
 
-        // 记录当前 token 的坐标
-        int thisCursor = this.tokenPool.getCursor() ;
+        SyntaxNode targetNode = declaration();
 
-        // 进入 声明语句 处理函数
-        int nextPosition = this.declaration_statement(preToken, thisCursor);
+        SyntaxNode p = targetNode ;
 
-        // 获取下一个位置的 token 
-        Word intToken = this.tokenPool.getNextToken();
+        // 程序以变量声明开始
+        // 获取开始 token 类型
+        String value = this.token.getValue();
+        while(!"int".equals(value) && !"void".equals(value) && !"#".equals(value)){
+            // 声明类型错误
+            this.syntaxErrorList.add(new SyntaxException(this.token, "程序开始声明类型错误"));
 
-        // 处理 int 
-        // 判断是否为 int
-        if(!WordMappingPool.getTokenValue("int").equals(intToken.getToken())){
-            // 出现错误
-            //this.syntaxErrorList.add(new SyntaxException(intToken,nextPosition,
-            //        "this main() function return type must be int , but current is not int!"));
-        }
-        
-        // 判断 main 关键字
-        Word mainToken = this.tokenPool.getNextToken();
-        if(!"main".equals(mainToken.getValue())){
-            // 关键字不为 main 出现错误
-            //this.syntaxErrorList.add(new SyntaxException(mainToken,this.tokenPool.getCursor(),
-                 //   "this main() function' name must be main, but current name is not main"));
-        }
-        
-        // 接下来判断是否为 () 函数界
-        Word parenthesisToken = this.tokenPool.getNextToken();
-        if(!"()".equals(parenthesisToken.getValue())){
-            // 下一个 token 不为()
-           // this.syntaxErrorList.add(new SyntaxException(parenthesisToken, this.tokenPool.getCursor(),
-               //     "this main() function must end of be () , but the next token is not ()"));
+            this.token = this.tokenPool.getNextToken();
+            if ("#".equals(this.token.getValue())){
+                // 结束语法分析
+                break;
+            }
         }
 
-        // 解析 复合语句
-        int compoundStatementIndex = this.compound_statement(parenthesisToken, this.tokenPool.getCursor());
+        // 开始类型解析
+        while ("int".equals(value) || "void".equals(value)){
+            SyntaxNode q = new SyntaxNode();
+            q = declaration();
 
-        // main 函数结束后，规定为其他函数的声明和定义
-        int functionBlockStartIndex = this.tokenPool.getCursor();
-        Word functionBlockStartToken = this.tokenPool.getTheIndexToken(functionBlockStartIndex);
-        this.function_block(functionBlockStartToken,functionBlockStartIndex);
+            if (q != null) {
+                if (targetNode == null) {
+                    targetNode = p = q ;
+                }
+                else{
+                    p.setSibling(q);
+                    p = q ;
+                }
+            }
+        }
 
+        // 匹配结束
+        match(new Word("#","#",10000));
 
-        // 全部通过之后，将这个过程加入语法解析的过程中
-        trance.add("program->declaration_statement int main () compound_statement function_block");
-        this.parseTrance.put("main() function parse",trance);
-
-        return currentCursor ;
+        return targetNode ;
     }
 
 
-    // 非终结符：函数块
-    public void function_block(Word preToken , int currentCursor){
 
-    }
+    // 声明语句文法推到
+    // declaration->var_declaration | function_declaration
+    // var_declaration->type_specifier ID; | type_specifier ID [NUM];
+    // function_declaration->type_specifier ID (params) | compount_stmt
+    // type_specifier->int | void
+    private SyntaxNode declaration() {
 
+        SyntaxNode targetNode = new SyntaxNode();
+        SyntaxNode p = null;
+        SyntaxNode q = null;
+        SyntaxNode s = null;
+        SyntaxNode a = null;
 
-    // 非终结符：函数定义
-    public void function_define(){
+        if("int".equals(this.token.getValue())){
+            p = AbstractSyntaxTree.newNode(NodeType.IntK);
+            this.match(Word.createToken("int", 1105));
 
-    }
+        }else if("void".equals(this.token.getValue())){
 
-
-    // 非终结符: 函数定义形式参数列表
-    public void function_define_format_parameter_list(){
-
-
-
-    }
-
-    // 非终结符: 函数定义形式参数项
-    public void function_define_format_parameter_item(){
-
-
-
-    }
-
-    // 非终结符: 语句
-    public void statement(){
-
-
-
-    }
-
-    // 非终结符: 声明语句->值声明|函数声明|$
-    // 需要预测分析接下来的几个token 来判断选择那种策略
-    public int declaration_statement(Word preToken , int currentCursor){
-        // 这里需要用到 preToken 作为第一个token 进行判断
-
-        // 值声明和函数声明：void
-        if("void".equals(preToken.getValue())){
-            // 这里为函数声明
-            this.function_declaration(preToken, currentCursor);
-
-        }else if ("final".equals(preToken.getValue())){
-            // 常量声明
-            this.const_declaration();
+            p = AbstractSyntaxTree.newNode(NodeType.VoidK);
+            this.match(Word.createToken("void",WordMappingPool.getTokenValue("void")));
 
         }else {
-            // 此时 preToken 是作为变量类型或函数返回值类型
-            // 需要继续获取到下一个 token 进行判断
-            Word identifier = this.tokenPool.getNextToken();
+
+            // 错误的声明类型
+            this.syntaxErrorList.add(new SyntaxException(this.token , "错误的声明类型"));
+        }
+
+        if (p != null && "ID".equals(this.token.getWeakClass())) {
 
             // 标识符
-            // 还需要获取下一个 token 进行判断: 判断是否为 ( , 进而得出是否为函数声明
-            Word isParenthesisToken = this.tokenPool.getNextToken();
+            q = AbstractSyntaxTree.newNode(NodeType.IdK);
+            q.setAttribute(this.token.getValue());
 
-            // 回退指针
-            this.tokenPool.decreaseCursorBySteps(2);
+            // 匹配标识符
+            this.matchOrType(new Word(this.token.getValue(),this.token.getValue()), "ID");
 
-            if ("(".equals(isParenthesisToken)) {
-                // 函数声明: 但是需要回退2个位置，因为我们向前预测了两个token的位置
-                this.function_declaration(preToken, currentCursor);
+            // 匹配 左括号， 判断是否为 函数
+            if("(".equals(this.token.getValue())){
 
-            }else if("=".equals(isParenthesisToken)){
-                // 赋值语句
-                this.value_declaration(preToken,currentCursor);
+                // 匹配函数
+                targetNode = AbstractSyntaxTree.newNode(NodeType.FunK);
+
+                // 设置 targetNode 节点的 孩子节点， p 是 t 的子节点
+                targetNode.getChildren().set(0,p) ;
+                targetNode.getChildren().set(1,q) ;
+
+                // 匹配左括号
+                this.match(new Word("(","(", WordMappingPool.getTokenValue("(")));
+
+                // 匹配参数 获取参数节点
+                SyntaxNode paramsNode =  this.params();
+                targetNode.getChildren().set(2,paramsNode);
+
+                // 匹配 右括号
+                this.match(new Word(")", ")", WordMappingPool.getTokenValue(")")));
+
+                // 处理复合语句
+                SyntaxNode compoundNode = this.compoundStmt();
+                targetNode.getChildren().set(3,compoundNode);
+
+            }else if("[".equals(this.token.getValue())){
+                // 中括号，数组声明
+                targetNode = AbstractSyntaxTree.newNode(NodeType.Var_DeclK);
+                a = AbstractSyntaxTree.newNode(NodeType.Array_DeclK);
+
+                targetNode.getChildren().set(0,p);
+                targetNode.getChildren().set(1,a);
+                this.match(new Word("[","[",WordMappingPool.getTokenValue("[")));
+
+                s = AbstractSyntaxTree.newNode(NodeType.ConstK);
+                s.setAttribute(this.token.getValue());
+
+                // 匹配一个数字
+                this.matchOrToken(new Word("number","number"),4200);
+
+                a.getChildren().set(0,q);
+                a.getChildren().set(1,s);
+
+                // 匹配 ], 分号
+                this.match(new Word("]","]",WordMappingPool.getTokenValue("]")));
+                this.match(new Word(";",","));
+
+            }else if (";".equals(this.token.getValue())){
+                // 分号结尾, 普通变量声明
+                targetNode = AbstractSyntaxTree.newNode(NodeType.Var_DeclK);
+                targetNode.getChildren().set(0,p);
+                targetNode.getChildren().set(1,q);
+
+                // 匹配分号
+                this.match(new Word(";",","));
 
             }else {
-                // 出现错误
-                //this.syntaxErrorList.add(new SyntaxException(isParenthesisToken, this.tokenPool.getCursor()+2,
-                    //    "the assign statement:" + identifier+  " next expect is a '=', but is "+ isParenthesisToken));
+
+                // 语法错误
+                this.syntaxErrorList.add(new SyntaxException(this.token, "错误的类型声明符号"));
 
             }
 
+        }else{
+
+            // 不是 ID 标识符
+            this.syntaxErrorList.add(new SyntaxException(this.token, "错误的声明语句"));
         }
 
-        // 查看是否还有下一个 token
-
-
-
-        // 这里的返回值得好好琢磨琢磨
-        return 0 ;
-    }
-
-    // 非终结符: 值声明
-    public void value_declaration(Word preToken , int currentCursor){
-
-
-
-    }
-
-    // 非终结符: 常量声明
-    public void const_declaration(){
-
-
-
-    }
-
-    // 非终结符: 常量类型
-    public void const_type(){
-
-
-
-    }
-
-    // 非终结符: 常量声明表
-    public void const_declaration_table(){
-
-
-
-    }
-
-    // 非终结符: 变量声明
-    public void variable_declaration(){
-
-
-
-    }
-
-    // 非终结符: 变量类型
-    public void variable_type(){
-
-
-
-    }
-
-    // 非终结符: 变量声明表
-    public void variable_declaration_table(){
-
-
-
-    }
-
-    // 非终结符: 单变量声明
-    public void single_variable_declaration(){
-
-
-
-    }
-
-    // 非终结符: 函数声明
-    public void function_declaration(Word preToken , int currentCursor){
-
-
-
-    }
-
-    // 非终结符: 函数类型(函数返回值类型)
-    public void function_return_type(){
-
-
-
-    }
-
-    // 非终结符: 函数声明形参列表
-    public void function_declaration_format_parameter_list(){
-
-
-
-    }
-
-    // 非终结符: 函数声明形参项
-    public void function_declaration_format_parameter_item(){
-
-
-
-    }
-
-    // 非终结符: 执行语句
-    public void execute_statement(){
-
-
-
-    }
-
-    // 非终结符: 出局处理语句
-    public void data_process_statement(){
-
-
-
-    }
-
-    // 非终结符: 赋值语句
-    public void assign_statement(){
-
-
-
-    }
-
-    // 非终结符: 赋值表达式
-    public void assign_expression(){
-
-
-
-    }
-
-    // 非终结符: 函数调用语句
-    public void function_call_statement(){
-
-
-
-    }
-
-    // 非终结符: 控制语句
-    public void control_statement(){
-
-
-
-    }
-
-    // 非终结符: 函数定义
-    public int compound_statement(Word preToken , int currentCursor){
-
-
-        return 0;
-    }
-
-    // 非终结符: 语句表
-    public void statement_table(){
-
-
-
-    }
-
-    // 非终结符: if 语句
-    public void if_statement(){
-
-
-
-    }
-
-    // 非终结符: if_tail
-    public void if_tail(){
-
-
-
-    }
-
-    // 非终结符: for 语句
-    public void for_statement(){
-
-
-
-    }
-
-    // 非终结符: while 语句
-    public void while_statement(){
-
-
-
-    }
-
-    // 非终结符: do while 语句
-    public void do_while_statement(){
-
-
-
-    }
-
-    // 非终结符: 循环语句 语句
-    public void loop_statement(){
-
-
-
-    }
-
-    // 非终结符: 循环复合语句
-    public void loop_compound_statement(){
-
-
-
-    }
-
-    // 非终结符: 循环语句表
-    public void loop_statement_table(){
-
-
-
-    }
-
-    // 非终结符: 循环执行语句
-    public void loop_execute_statement(){
-
-
-
-    }
-
-    // 非终结符: 循环 if 语句
-    public void loop_if_statement(){
-
-
-
-    }
-
-    // 非终结符: return 语句
-    public void return_statement(){
-
-
-
-    }
-
-    // 非终结符: break 语句
-    public void break_statement(){
-
-
-
-    }
-
-    // 非终结符: continue 语句
-    public void continue_statement(){
-
-
-
+        return targetNode;
     }
 
 
-    // 非终结符: 表达式
-    public void expression(){
 
 
+    // 处理函数参数列表
+    // params->param_list | void
+    private SyntaxNode params() {
+
+        SyntaxNode targetNode = AbstractSyntaxTree.newNode(NodeType.ParamsK);
+        SyntaxNode p = null ;
+
+        if ("void".equals(this.token.getValue())){
+            // 类型为 void 说明没有参数列表
+            p = AbstractSyntaxTree.newNode(NodeType.VoidK);
+
+            // 匹配
+            this.match(new Word("void", "void"));
+
+            // 判断后续 右括号 )
+            if (")".equals(token.getValue())){
+                if (targetNode != null) {
+                    targetNode.getChildren().set(0,p);
+                }
+            }else {
+                // 处理参数列表
+                SyntaxNode paramListNode = this.paramList(p);
+                targetNode.getChildren().set(0,paramListNode);
+            }
+
+        }else if("int".equals(this.token.getValue())){
+            // 类型为 int
+            // 处理参数列表
+            SyntaxNode paramListNode = this.paramList(p);
+            targetNode.getChildren().set(0,paramListNode);
+        }else {
+
+            this.syntaxErrorList.add(new SyntaxException(this.token,"错误的函数参数类型"));
+        }
+
+        return targetNode;
+    }
+
+
+
+    // 处理参数列表
+    // param_list->param {, param}
+    private SyntaxNode paramList(SyntaxNode parentNode) {
+
+        SyntaxNode targetNode = this.param(parentNode);
+        SyntaxNode p = targetNode ;
+
+        // 没有要传递给 parma 的参数 ，所以为VoidK
+        parentNode = null ;
+
+        // token 为 逗号',' ，需要一个处理参数
+        while (",".equals(this.token.getValue())){
+
+            SyntaxNode q = null ;
+            // 匹配 逗号
+            this.match(new Word(",",","));
+            q = this.param(parentNode);
+
+            if (q != null) {
+                // 下层已经成功解析了参数
+                if (targetNode == null) {
+                    targetNode=p=q;
+
+                }else{
+                    p.setSibling(q);
+                    p = q ;
+                }
+            }
+        }
+
+        return targetNode ;
+    }
+
+
+
+    // 处理单个函数参数
+    // param -> type_specifier ID { [] }
+    private SyntaxNode param(SyntaxNode parentNode) {
+
+        SyntaxNode target = AbstractSyntaxTree.newNode(NodeType.ParamK);
+
+        SyntaxNode p = null ;
+        SyntaxNode q = null ;
+
+        if (parentNode == null && "void".equals(this.token.getValue())) {
+            // 上层没有参数传递
+            p = AbstractSyntaxTree.newNode(NodeType.VoidK);
+            // 匹配
+            this.match(new Word("void","void",WordMappingPool.getTokenValue("void")));
+
+        }else if (parentNode == null && "int".equals(this.token.getValue())){
+            // int 类型的参数，可能接下来还有参数列表
+            p = AbstractSyntaxTree.newNode(NodeType.IntK);
+            this.match(new Word("int","int",WordMappingPool.getTokenValue("int")));
+
+        }else if (parentNode != null){
+            p = parentNode ;
+        }
+
+
+        //
+        if (p != null) {
+
+            target.getChildren().set(0,p) ;
+
+            // 判断 token 类型
+            if("ID".equals(this.token.getWeakClass())){
+                // 标识符
+                q = AbstractSyntaxTree.newNode(NodeType.IdK);
+                q.setAttribute(this.token.getValue());
+                target.getChildren().set(1,q);
+                // 匹配标识符
+                this.matchOrToken(this.token, 4500);
+
+            }else {
+                // 错误
+                this.syntaxErrorList.add(new SyntaxException(this.token,
+                        "期望得到一个标识符，实际类型："+this.token.getWeakClass()));
+            }
+
+            // 匹配 中括号，看是否是数组
+            if ("[".equals(this.token.getValue()) && (target.getChildren().get(1) != null)){
+
+                // 匹配左中括号，
+                this.match(new Word("[","["));
+                target.getChildren().set(2,AbstractSyntaxTree.newNode(NodeType.IdK));
+                // 匹配右中括号
+                this.match(new Word("]","]"));
+
+            }else{
+                return target;
+            }
+
+        }else{
+
+            this.syntaxErrorList.add(new SyntaxException(this.token ,"错误的声明类型"));
+        }
+
+        return target;
+    }
+
+
+
+
+    // 处理 复合语句
+    // 复合语句可以推出 局部变变量声明，语句列表
+    // compound_stmt->{ local_declaration statement_list }
+    private SyntaxNode compoundStmt() {
+
+        SyntaxNode target = AbstractSyntaxTree.newNode(NodeType.CompK);
+
+        // 匹配 {
+        this.match(new Word("{","{",WordMappingPool.getTokenValue("{")));
+
+        // 获取 局部变量声明 节点
+        SyntaxNode lcNode =  this.localDeclaration();
+        target.getChildren().set(0,lcNode);
+
+        SyntaxNode stNode = this.statementList();
+        target.getChildren().set(1,stNode);
+
+        this.match(new Word("}","}",WordMappingPool.getTokenValue("}")));
+
+        return target;
+    }
+
+
+
+    // 处理全局变量声明
+    // local_declaration->empty { var_declaration }
+    private SyntaxNode localDeclaration() {
+
+        SyntaxNode target = null ;
+        SyntaxNode p = null ;
+        SyntaxNode q = null ;
+
+        while ("int".equals(this.token.getValue()) || "void".equals(this.token.getValue())){
+
+            p = AbstractSyntaxTree.newNode(NodeType.Var_DeclK);
+
+            if ("int".equals(this.token.getValue())){
+                // int 类型的声明
+                SyntaxNode q1 = AbstractSyntaxTree.newNode(NodeType.IntK);
+                p.getChildren().set(0,q1) ;
+
+                // 匹配
+                this.match(new Word("int","int"));
+
+            }else if("void".equals(this.token.getValue())){
+
+                // void 类型的声明
+                SyntaxNode q1 = AbstractSyntaxTree.newNode(NodeType.VoidK);
+                p.getChildren().set(0,q1) ;
+
+                // 匹配
+                this.match(new Word("void","void"));
+            }
+
+
+            // 接下来是标识符
+            if(p != null && this.token.getWeakClass().equals(WordStatus.ID)){
+                SyntaxNode q2 = AbstractSyntaxTree.newNode(NodeType.IdK);
+                q2.setAttribute(this.token.getValue());
+
+                p.getChildren().set(1,q2);
+                // 匹配标识符
+                this.matchOrToken(this.token ,4500);
+
+                // 判断是否还有后续，并且后续是 [ , 即看是否是数组声明
+                if("[".equals(this.token.getValue())){
+                    SyntaxNode q3 = AbstractSyntaxTree.newNode(NodeType.Var_DeclK);
+                    p.getChildren().set(3,q3);
+
+                    // 匹配
+                    this.match(new Word("[","["));
+                    this.match(new Word("]","]"));
+                    this.match(new Word(";",";"));
+
+                }else if (";".equals(this.token.getValue())){
+                    // 普通变量声明，后面直接就是分号
+                    this.match(new Word(";",";"));
+                }else {
+                    this.match(new Word(";",";"));
+                }
+
+            }else {
+                this.syntaxErrorList.add(new SyntaxException(this.token, "非法的变量声明或语句结束"));
+            }
+
+            if (p != null) {
+
+                if (target == null) {
+                    target = q = p ;
+                }else {
+                    q.setSibling(p);
+                    p = q ;
+                }
+            }
+        }
+
+        return target ;
+    }
+
+
+    // 语句列表
+    // statement_list->{ statement }
+    private SyntaxNode statementList() {
+
+        SyntaxNode target = this.statement();
+        SyntaxNode p = target ;
+
+        // 获取 token 的  value
+        String value = this.token.getValue();
+
+        while("if".equals(value) || "while".equals(value) || "return".equals(value) ||
+                "{".equals(value) || "(".equals(value) || ";".equals(value) ||
+                this.token.getToken().equals(4200) || this.token.getWeakClass().equals(WordStatus.ID)){
+
+            SyntaxNode q = null ;
+            q = this.statement();
+
+            if (q != null) {
+
+                if (target == null) {
+                    target = p = q;
+                }else{
+                    p.setSibling(q);
+                    p = q;
+                }
+            }
+        }
+
+        return target ;
+    }
+
+
+
+
+    // 语句：语句可以分为 表达式语句，复合语句，循环语句，分支语句, return 语句
+    // statement->expression_stmt | compound_stmt | selection_stmt | iteration_stmt | return_stmt
+    private SyntaxNode statement() {
+
+        SyntaxNode target = null ;
+
+        String value = this.token.getValue();
+        Integer integer = this.token.getToken();
+        String weakClass = this.token.getWeakClass();
+
+        // 根据 token 判断表达式类型
+        if ("if".equals(value)){
+            target = this.selectionStmt();
+
+        }else if ("while".equals(value)){
+            target = this.iterationStmt();
+
+        }else if ("return".equals(value)){
+            target = this.returnStmt();
+
+
+        }else if ("{".equals(value)){
+            target = this.compoundStmt();
+
+        }else if (";".equals(value) || "(".equals(value) || integer.equals(4500) || integer.equals(4200)){
+            // 分号，左括号，标识符ID，数字 Number
+            // 表达式语句
+            target = this.expressionStmt() ;
+
+        }else{
+            // 错误的表达式
+            this.syntaxErrorList.add(new SyntaxException(this.token ,"非法的表达式开始"));
+            // 跳过当前错误 token
+            this.token = this.getNextToken();
+        }
+
+
+        return target ;
+    }
+
+
+    // if 表达式
+    private SyntaxNode selectionStmt() {
+
+        SyntaxNode target = AbstractSyntaxTree.newNode(NodeType.Selection_StmtK);
+
+        // 匹配 if
+        this.match(new Word("if", "if"));
+        this.match(new Word("(", "("));
+
+        if (target != null) {
+
+            // 处理条件表达式
+            SyntaxNode relNode = this.expression();
+            target.getChildren().set(0,relNode);
+        }
+
+        // 匹配 )
+        this.match(new Word(")",")"));
+
+        // 处理接下来的语句
+        SyntaxNode statementNode = this.statement();
+        target.getChildren().set(1,statementNode);
+
+        // 判断后续是否还有 else 语句
+        if ("else".equals(this.token.getValue())){
+            this.match(new Word("else", "else"));
+
+            if (target != null) {
+                SyntaxNode elseNode = this.statement();
+                target.getChildren().set(2,elseNode);
+            }
+        }
+
+        return target ;
 
     }
 
 
-    // 非终结符: 算术表达式
-    public void arithmetic_expression(){
 
 
+    // 循环表达式
+    // iteration_stmt-> while ( expression )
+    private SyntaxNode iterationStmt() {
 
+        SyntaxNode target = AbstractSyntaxTree.newNode(NodeType.Iteration_StmtK);
+
+        // 匹配
+        this.match(new Word("while","while"));
+        this.match(new Word("(", "("));
+
+        if (target != null){
+
+            // 分析表达式
+            SyntaxNode expNode = this.expression();
+            target.getChildren().set(0,expNode);
+        }
+
+        // 匹配右括号
+        this.match(new Word(")",")"));
+
+        // 处理语句
+        if (target != null) {
+
+            SyntaxNode stmtNode = this.statement();
+            target.getChildren().set(1,stmtNode);
+        }
+
+        return target ;
     }
 
 
-    // 非终结符: 项
-    public void prime(){
+    // 返回语句
+    private SyntaxNode returnStmt() {
 
+        SyntaxNode target = AbstractSyntaxTree.newNode(NodeType.Return_StmtK);
 
+        this.match(new Word("return", "return"));
 
+        // 判断是否有返回值
+        if (";".equals(this.token.getValue())) {
+            // 没有返回值
+            this.match(new Word(";",";"));
+            return target;
+
+        }else {
+            // 有返回值
+            if (target != null) {
+                // 处理表达式
+                SyntaxNode returnNode = this.expression();
+                target.getChildren().set(0,returnNode);
+            }
+        }
+
+        this.match(new Word(";",";"));
+        return target ;
     }
 
 
-    // 非终结符: 因子
-    public void factor(){
+    // 表达式处理
+    // expression_stmt-> [ expression ];
+    private SyntaxNode expressionStmt() {
 
+        SyntaxNode target = null ;
 
+        // 判断是否为分号，选择是否执行表达式解析，
+        if (";".equals(this.token.getValue())){
 
-    }
+            this.match(new Word(";",";"));
+            return target;
 
-    // 非终结符: 函数调用
-    public void function_call(){
+        }else{
+            // 是表达式，需要进行处理
+            target = this.expression();
+            this.match(new Word(";",";"));
+        }
 
-
-
-    }
-
-    // 非终结符: 实际参数列表
-    public void actual_parameter_list(){
-
-
-
-    }
-
-    // 非终结符: 实际参数
-    public void actual_parameter_item(){
-
-
-
-    }
-
-    // 非终结符: 关系表达式
-    public void relational_expression(){
-
-
-
+        return target ;
     }
 
 
-    // 非终结符: 关系运算符
-    public void relational_operator(){
+    // 处理表达式: 变量赋值表达式，简单表达式
+    // expression->var = expression | simple_expression
+    private SyntaxNode expression() {
 
+        SyntaxNode target = this.var();
 
+        // 不是 标识符 开头，只能是 普通表达式 simple_expression  类型
+        if (target == null) {
+            target = this.simpleExpression(target);
 
+        }else{
+            // 以标识符开头，可能是变量赋值表达式，也可能为 函数调用表达式
+            SyntaxNode p = null ;
+
+            // 判断是否为赋值语句
+            if ("=".equals(this.token.getValue())) {
+
+                p = AbstractSyntaxTree.newNode(NodeType.AssginK) ;
+
+                // 匹配
+                this.match(new Word("=","="));
+
+                p.getChildren().set(0,target);
+                // 表达式节点
+                SyntaxNode expNode = this.expression();
+                p.getChildren().set(1,expNode);
+
+                return p ;
+            }else {
+                // simple_expresstion 类中的 call 函数调用 和 var 变量类型
+                target = this.simpleExpression(target);
+            }
+        }
+
+        return target ;
     }
 
 
-    // 非终结符: 布尔表达式
-    public void bool_expression(){
 
+    // 处理变量赋值语句
+    // var->ID | ID [ expression ]
+    private SyntaxNode var() {
 
+        SyntaxNode target = null ;
+        SyntaxNode p = null ;
+        SyntaxNode q = null ;
 
+        if (this.token.getWeakClass().equals(WordStatus.ID)){
+            // 符合规则
+            p = AbstractSyntaxTree.newNode(NodeType.IdK);
+            p.setAttribute(this.token.getValue());
+
+            // 匹配
+            this.matchOrToken(this.token, 4500);
+
+            if ("[".equals(this.token.getValue())){
+                // 判断是否是数组类型
+                this.match(new Word("[","["));
+
+                // 处理表达式
+                q = expression();
+
+                this.match(new Word("]","]"));
+
+                // 数组类型
+                target = AbstractSyntaxTree.newNode(NodeType.Array_ElemK);
+                target.getChildren().set(0,p);
+                target.getChildren().set(1,q);
+
+            }else{
+                // 不是数组声明
+                target = p ;
+            }
+        }
+        return target ;
     }
 
 
-    // 非终结符: 布尔项
-    public void bool_prime(){
+    // 处理常规表达式, 关系表达式
+    // simple_expression->additive_expression { relop addivite_expression }
+    // relop-><= | < | > | >= | == | !=
+    private SyntaxNode simpleExpression(SyntaxNode parentNode) {
 
+        SyntaxNode target = this.additiveExpression(parentNode);
 
+        parentNode = null ;
 
+        // 判断 运算符，关系符号
+        String operator = this.token.getValue();
+        if ("==".equals(operator) || ">".equals(operator) || ">=".equals(operator) ||
+                "<".equals(operator) || "<=".equals(operator) || "!=".equals(operator)){
+            SyntaxNode q = AbstractSyntaxTree.newNode(NodeType.OpK);
+            q.setAttribute(this.token.getValue());
+            q.getChildren().set(0,target);
+
+            target = q ;
+
+            // 匹配
+            this.match(this.token);
+
+            // 处理后续关系表达式
+            SyntaxNode nextRelNode = this.additiveExpression(parentNode);
+
+            // 设置关系表达式后续节点
+            target.getChildren().set(1,nextRelNode);
+            return target;
+        }
+
+        return target ;
     }
 
 
-    // 非终结符: 布尔因子
-    public void bool_factor(){
 
+    // 算术表达式
+    private SyntaxNode additiveExpression(SyntaxNode parentNode) {
 
+        // 处理第一个 项目
+        SyntaxNode target = this.term(parentNode);
 
+        parentNode = null ;
+
+        while ("+".equals(this.token.getValue()) || "-".equals(this.token.getValue())){
+
+            // 处理算数表达式
+            SyntaxNode q = AbstractSyntaxTree.newNode(NodeType.OpK);
+            q.setAttribute(this.token.getValue());
+
+            q.getChildren().set(0,target);
+
+            // 匹配
+            this.match(this.token);
+
+            // 处理后续项目
+            SyntaxNode nextNode = this.term(parentNode);
+            q.getChildren().set(1,nextNode);
+
+            target = q ;
+        }
+
+        return target;
     }
 
 
-    // 非终结符: 标识符
-    public void identifier(){
+    // 处理算数表达式的一项
+    // term->
+    private SyntaxNode term(SyntaxNode parentNode) {
 
+        SyntaxNode target = this.factor(parentNode);
 
+        parentNode = null ;
 
+        while("*".equals(this.token.getValue()) || "/".equals(this.token.getValue())){
+
+            SyntaxNode opNode = AbstractSyntaxTree.newNode(NodeType.OpK);
+            opNode.setAttribute(this.token.getValue());
+
+            opNode.getChildren().set(0,target);
+            target = opNode ;
+
+            // 匹配
+            this.match(this.token);
+            // 处理后续因子
+            SyntaxNode nextNode = this.factor(parentNode);
+            opNode.getChildren().set(1, nextNode);
+
+        }
+        return target ;
     }
 
 
-    // 非终结符: 常量
-    public void const_value(){
+
+    // 处理因子
+    private SyntaxNode factor(SyntaxNode parentNode) {
+
+        SyntaxNode target = null ;
+
+        // parentNode 为上层建筑 传递下来的 已经解析出来的以 ID 开头的 var 可能为 call 或 var
+        if (parentNode != null) {
+
+            if ("(".equals(this.token.getValue()) && parentNode.getKind().equals(NodeType.Array_ElemK)){
+                // 函数调用 call
+                target = this.call(parentNode);
+            }else {
+                target = parentNode ;
+            }
+        }else {
+            // 上层建筑没有传递下来的 var
+            //this.token
+
+        }
 
 
-
+        return target ;
     }
 
-    // 非终结符: 变量
-    public void variable_value(){
+
+
+    // 函数调用
+    private SyntaxNode call(SyntaxNode parentNode) {
 
 
 
+        return null ;
     }
-
-
 
 
 }

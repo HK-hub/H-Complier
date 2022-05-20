@@ -1,7 +1,6 @@
 package com.hk.complier.syntax.parser.ll.ast;
 
-import com.hk.complier.lexer.constant.Word;
-import com.hk.complier.lexer.constant.WordMappingPool;
+
 import lombok.Data;
 
 /**
@@ -14,32 +13,39 @@ import lombok.Data;
  * @Modified :
  * @Version : 1.0
  */
-@Data
 public class AbstractSyntaxTree {
 
     // 根节点
     private SyntaxNode rootNode ;
 
 
-    public static SyntaxNode newNode(Word token){
+    public static SyntaxNode newNode(NodeType kind){
 
         SyntaxNode node = new SyntaxNode();
 
-        String weakClass = token.getWeakClass();
+        // 设置兄弟节点
+        node.setSibling(null);
 
-        if ("".equals(weakClass) || weakClass == null || weakClass.length() <= 0){
-            // weakclass 为止
-            weakClass = WordMappingPool.getWordClassByTokenValue(token.getToken());
+        // 设置 token 类型
+        node.setKind(kind);
+
+        if (kind == NodeType.OpK || kind == NodeType.IntK || kind == NodeType.IdK){
+            node.setAttribute("");
+            node.setExpType(ExpType.Integer);
         }
 
-        node.setType(weakClass);
-        node.setAttribute(token.getValue());
-        node.setToken(token);
-
+        if (kind ==NodeType.ConstK){
+            node.setAttribute("0");
+        }
 
         return node ;
     }
 
+    public SyntaxNode getRootNode() {
+        return rootNode;
+    }
 
-
+    public void setRootNode(SyntaxNode rootNode) {
+        this.rootNode = rootNode;
+    }
 }

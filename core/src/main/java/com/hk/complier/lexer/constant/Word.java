@@ -133,4 +133,19 @@ public class Word {
                 ", token=" + token +
                 '}';
     }
+
+    public static Word endFileToken(){
+
+        return new Word("#","#",10000);
+    }
+
+    public static Word createToken(String value, int token){
+        return new Word(value,value, token);
+    }
+
+    public static Word createIntToken(){
+
+        return new Word("int","int", 1105);
+    }
+
 }

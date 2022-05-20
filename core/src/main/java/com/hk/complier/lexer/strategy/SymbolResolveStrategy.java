@@ -46,7 +46,6 @@ public class SymbolResolveStrategy extends ResolveStrategy{
             }
 
 
-
             String substring = source.substring(preIndex, index+1);
             // 当前字符已经不是界符拉，必须是运算符
             // 获取下一个符号进行判断
@@ -62,8 +61,15 @@ public class SymbolResolveStrategy extends ResolveStrategy{
             }
 
             Word word = new Word(substring, substring, WordMappingPool.getTokenValue(substring));
-            analyzer.getWordPool().getWordDefinitionList().add(new WordDefinition(word));
+            if ("()".equals(word.getValue())){
+                analyzer.getWordPool().getWordDefinitionList().add(
+                        new WordDefinition(new Word("(","(",WordMappingPool.getTokenValue("("))));
+                analyzer.getWordPool().getWordDefinitionList().add(
+                        new WordDefinition(new Word(")",")",WordMappingPool.getTokenValue(")"))));
 
+            }else{
+                analyzer.getWordPool().getWordDefinitionList().add(new WordDefinition(word));
+            }
             // 同步
             analyzer.setCurrentCursor(index);
 

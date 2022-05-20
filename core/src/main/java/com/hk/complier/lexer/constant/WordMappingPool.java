@@ -68,6 +68,7 @@ public class WordMappingPool {
             properties.put("/=","2504");
             properties.put("*=","2503");
             properties.put("?:","2600");
+            properties.put("#","10000");
         } catch (IOException e) {
             e.printStackTrace();
         }

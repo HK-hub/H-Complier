@@ -1,8 +1,9 @@
 package com.hk.complier.dfa.graph;
 
 
-import net.sf.json.JSONObject;
-import net.sf.json.JSONArray;
+
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
 import com.hk.complier.dfa.model.Convert;
 import java.io.*;
 import java.util.*;

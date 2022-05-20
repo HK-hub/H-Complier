@@ -10,10 +10,10 @@ package com.hk.complier.syntax.parser.ll.ast;
  * @Modified :
  * @Version : 1.0
  */
-public class NodeType {
+public enum NodeType {
 
-
-
-
+    IntK ,IdK ,VoidK ,ConstK ,Var_DeclK , Array_DeclK, FunK ,ParamsK ,
+    ParamK ,CompK, Selection_StmtK, Iteration_StmtK ,Return_StmtK ,AssginK ,
+    OpK ,Array_ElemK ,CallK ,ArgsK ,UnknownK ,
 
 }

@@ -30,12 +30,13 @@ dependencies {
 
     implementation 'net.sf.json-lib:json-lib-ext-spring:1.0.2'
 
-    compileOnly 'org.projectlombok:lombok'
+    implementation 'org.projectlombok:lombok'
     runtimeOnly 'mysql:mysql-connector-java'
     annotationProcessor 'org.projectlombok:lombok'
+
     implementation 'net.sf.json-lib:json-lib:2.4'
 
-
+    annotationProcessor 'io.spring.dependency-management:spring-dependency-management-annotation-processor'
 
     implementation project(":core")
 

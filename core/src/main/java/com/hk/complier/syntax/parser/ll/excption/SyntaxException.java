@@ -35,4 +35,9 @@ public class SyntaxException {
         this.position = position;
         this.errorMsg = errorMsg;
     }
+
+    public SyntaxException(Word token, String msg) {
+        this(token, -1,msg) ;
+
+    }
 }
