@@ -25,6 +25,8 @@ public class Generator {
 	private void handleFunc(Node func) {
 		String id = func.getSon(1).getAttribute("val");
 		funcsInfoMap.get(id).position = fourItemList.size() + 1;
+
+
 		funcInfo = funcsInfoMap.get(func.getSon(1).getAttribute("val"));
 		handleDefinelist(func.getSon(6));
 		handleStatements(func.getSon(7));
